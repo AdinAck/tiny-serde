@@ -1,3 +1,5 @@
+#![no_std]
+
 pub trait TryDeserialize<T, const N: usize>: Sized {
     fn try_deserialize(data: [T; N]) -> Option<Self>;
 }
