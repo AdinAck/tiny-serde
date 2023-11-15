@@ -1,39 +1,58 @@
 # tiny-serde
 
-A very small, explicitly static, serialization and deserialization interface.
+A statically determined serialization and deserialization system for sized types.
 
-# no_std
+## no_std
 
 This crate is intended for use in `no_std` environments.
 
 # Usage
 
-## Serialize
+This crate creates two traits: `Serialize` and `Deserialize`.
 
-A type can be serialized to the form of 4 `u8`'s if it implements `Serialize<u8, 4>`:
+They are extremely simple:
 
 ```rust
-impl Serialize<u8, 4> for u32 {
-    fn serialize(self) -> [u8, 4] {
-        self.to_ne_bytes()
-    }
+pub trait Serialize<const N: usize>: Sized {
+    fn serialize(self) -> [u8; N];
 }
 ```
 
-## Deserialize
-
-A type can be deserialized from 4 `u8`'s if it implements `Deserialize<u8, 4>`:
-
 ```rust
-impl Deserialize<u8, 4> for u32 {
-    fn deserialize(data: [u8; 4]) -> Self {
-        Self::from_ne_bytes()
-    }
+pub trait Deserialize<const N: usize>: Sized {
+    fn deserialize(data: [u8; N]) -> Option<Self>;
 }
 ```
 
-## TryDeserialize
+As you can see, since these traits are restricted to sized types, the size of the serialized representation (`N`) is known as well.
 
-A type *may* or *may not* be deserialized from 4 `u8`'s if it implements `TryDeserialize<u8, 4`:
+Two convenience derive macros `Serialize` and `Deserialize` are provided and can be used like so:
 
-> A type that implements `Deserialize` automatically implements `TryDeserialize`.
+```rust
+#[derive(Serialize, Deserialize)]
+#[repr(u16)]
+enum Foo {
+    A,
+    B = 0xde,
+    C
+}
+
+#[derive(Serialize, Deserialize)]
+struct Bar {
+    a: u8,
+    foo: Foo,
+    b: u16
+}
+```
+
+> Since `Foo` implements `Serialize` and `Deserialize`, `Bar` can as well.
+
+# Design Considerations
+
+## Safety
+
+No `unsafe` blocks are used in this crate. The derive macros cannot generate unsafe code. Worst case their output will just not compile.
+
+## Note
+
+The derive macros are a **zero-cost abstraction**. They employ constant evaluation to generate static code that extracts bytes from inner structures and places it into the result array. No counting pointer, no runtime checks (other than that of `array::copy_from_slice(...)`), direct insertion only.

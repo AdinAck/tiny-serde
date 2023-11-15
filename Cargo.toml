@@ -5,4 +5,6 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+[dev-dependencies]
+tiny-serde-macros = { path = "/Users/adinack/Projects/tiny-serde-macros" }
+
