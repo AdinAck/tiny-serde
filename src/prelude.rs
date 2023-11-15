@@ -1,5 +1,3 @@
-#![doc(hidden)]
-
 pub trait _TinySerSized {
     const SIZE: usize;
 }
