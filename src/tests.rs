@@ -14,7 +14,7 @@ fn proc_macros() {
     #[repr(u16)]
     enum Eenie {
         A = 0xde,
-        B
+        B,
     }
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

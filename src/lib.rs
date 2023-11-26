@@ -49,3 +49,19 @@ primitive_ser_impls! {
     f32: 4,
     f64: 8
 }
+
+impl Serialize<1> for bool {
+    fn serialize(self) -> [u8; 1] {
+        (self as u8).serialize()
+    }
+}
+
+impl Deserialize<1> for bool {
+    fn deserialize(data: [u8; 1]) -> Option<Self> {
+        match u8::deserialize(data)? {
+            0 => Some(false),
+            1 => Some(true),
+            _ => None,
+        }
+    }
+}
