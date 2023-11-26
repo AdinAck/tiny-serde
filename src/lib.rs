@@ -50,6 +50,14 @@ primitive_ser_impls! {
     f64: 8
 }
 
+impl _TinySerSized for bool {
+    const SIZE: usize = 1;
+}
+
+impl _TinyDeSized for bool {
+    const SIZE: usize = 1;
+}
+
 impl Serialize<1> for bool {
     fn serialize(self) -> [u8; 1] {
         (self as u8).serialize()
