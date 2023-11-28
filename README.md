@@ -33,8 +33,8 @@ Two convenience derive macros `Serialize` and `Deserialize` are provided and can
 #[repr(u16)]
 enum Foo {
     A,
-    B = 0xde,
-    C
+    B(bool) = 0xde,
+    C(u8)
 }
 
 #[derive(Serialize, Deserialize)]
