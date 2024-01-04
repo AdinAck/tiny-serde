@@ -26,7 +26,7 @@ fn proc_macros() {
     #[repr(u8)]
     enum Meenie {
         A,
-        B(bool) = 0x10,
+        B { val: bool } = 0x10,
         C(u16),
     }
 
