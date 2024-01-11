@@ -6,6 +6,9 @@ mod tests;
 
 use prelude::*;
 
+#[cfg(feature = "derive")]
+pub use macros::*;
+
 pub trait Serialize<const N: usize>: Sized {
     fn serialize(self) -> [u8; N];
 }

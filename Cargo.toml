@@ -1,7 +1,0 @@
-[package]
-name = "tiny-serde"
-version = "0.1.0"
-edition = "2021"
-
-[dev-dependencies]
-tiny-serde-macros = { git = "https://github.com/AdinAck/tiny-serde-macros", branch = "main" }

@@ -1,0 +1,11 @@
+[package]
+name = "tiny-serde"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["derive"]
+derive = ["dep:macros"]
+
+[dependencies]
+macros = { path = "../macros", optional = true }

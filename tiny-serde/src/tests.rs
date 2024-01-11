@@ -1,9 +1,19 @@
+#[cfg(feature = "derive")]
 use crate::prelude::*;
 use crate::{Deserialize, Serialize};
-use tiny_serde_macros::{Deserialize, Serialize};
 
 #[test]
-fn proc_macros() {
+fn basic() {
+    assert_eq!(128u8.serialize(), [0x80]);
+    assert_eq!(
+        u32::deserialize([0xde, 0xad, 0xbe, 0xef]),
+        Some(3_735_928_559)
+    );
+}
+
+#[cfg(feature = "derive")]
+#[test]
+fn derive() {
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     struct Foo {
         a: bool,
