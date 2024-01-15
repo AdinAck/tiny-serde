@@ -1,43 +1,48 @@
 #![no_std]
 
-pub mod prelude;
 #[cfg(test)]
 mod tests;
 
-use prelude::*;
-
 #[cfg(feature = "derive")]
-pub use macros::*;
+pub use macros::Serialize;
 
-pub trait Serialize<const N: usize>: Sized {
-    fn serialize(self) -> [u8; N];
+/// Records the size of a type intended for use as
+/// a serialization medium.
+pub trait TinySerDeSized {
+    const SIZE: usize;
 }
 
-pub trait Deserialize<const N: usize>: Sized {
-    fn deserialize(data: [u8; N]) -> Option<Self>;
+impl<const N: usize> TinySerDeSized for [u8; N] {
+    const SIZE: usize = N;
+}
+
+/// Types that implement this trait can be serialized
+/// to and from a serialization medium (usually bytes
+/// in the form of [u8; N]).
+pub trait Serialize: Sized {
+    type Serialized: TinySerDeSized;
+    type Error;
+
+    /// Serializes the passed instance of this type (move).
+    fn serialize(self) -> Self::Serialized;
+    /// Creates an instance of this type; deserialized from the provided data (move).
+    fn deserialize(data: Self::Serialized) -> Result<Self, Self::Error>;
 }
 
 #[doc(hidden)]
 macro_rules! primitive_ser_impls {
     ( $( $TAR_TYPE:ty: $SIZE:expr ),+ ) => {
         $(
-            impl _TinySerSized for $TAR_TYPE {
-                const SIZE: usize = $SIZE;
-            }
+            impl Serialize for $TAR_TYPE {
+                type Serialized = [u8; $SIZE];
+                type Error = ();
 
-            impl _TinyDeSized for $TAR_TYPE {
-                const SIZE: usize = $SIZE;
-            }
-
-            impl Serialize<$SIZE> for $TAR_TYPE {
-                fn serialize(self) -> [u8; $SIZE] {
+                fn serialize(self) -> Self::Serialized {
                     <$TAR_TYPE>::to_be_bytes(self)
                 }
-            }
 
-            impl Deserialize<$SIZE> for $TAR_TYPE {
-                fn deserialize(data: [u8; $SIZE]) -> Option<Self> {
-                    Some(<$TAR_TYPE>::from_be_bytes(data))
+                fn deserialize(data: Self::Serialized) -> Result<Self, Self::Error> {
+                    Ok(<$TAR_TYPE>::from_be_bytes(data))
                 }
             }
         )+
@@ -57,26 +62,19 @@ primitive_ser_impls! {
     f64: 8
 }
 
-impl _TinySerSized for bool {
-    const SIZE: usize = 1;
-}
+impl Serialize for bool {
+    type Serialized = [u8; 1];
+    type Error = ();
 
-impl _TinyDeSized for bool {
-    const SIZE: usize = 1;
-}
-
-impl Serialize<1> for bool {
-    fn serialize(self) -> [u8; 1] {
+    fn serialize(self) -> Self::Serialized {
         (self as u8).serialize()
     }
-}
 
-impl Deserialize<1> for bool {
-    fn deserialize(data: [u8; 1]) -> Option<Self> {
+    fn deserialize(data: Self::Serialized) -> Result<Self, Self::Error> {
         match u8::deserialize(data)? {
-            0 => Some(false),
-            1 => Some(true),
-            _ => None,
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(()),
         }
     }
 }
