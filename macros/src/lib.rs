@@ -45,7 +45,7 @@ fn serialize_struct(ident: Ident, s: DataStruct) -> TokenStream2 {
                 Ok(
                     Self {
                         #(
-                            #attrs: <#types as Serialize>::deserialize(data[#cursors_a..#cursors_b].try_into().unwrap())?
+                            #attrs: Serialize::deserialize(data[#cursors_a..#cursors_b].try_into().unwrap())?
                         ),*
                     }
                 )
@@ -175,9 +175,9 @@ fn serialize_enum(ident: Ident, repr: Type, e: DataEnum) -> TokenStream2 {
                 |field| {
                     let ty = field.ty;
                     if let Some(ident) = field.ident {
-                        Some(quote! { {#ident: <#ty as Serialize>::deserialize(data[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].try_into().unwrap())?} })
+                        Some(quote! { {#ident: Serialize::deserialize(data[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].try_into().unwrap())?} })
                     } else {
-                        Some(quote! { (<#ty as Serialize>::deserialize(data[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].try_into().unwrap())?) })
+                        Some(quote! { (Serialize::deserialize(data[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].try_into().unwrap())?) })
                     }
                 }
             )
