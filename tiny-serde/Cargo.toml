@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["derive"]
+default = ["derive", "unsafe"]
 derive = ["dep:macros"]
+unsafe = ["macros/unsafe"]
 
 [dependencies]
 macros = { path = "../macros", optional = true }

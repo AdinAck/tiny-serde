@@ -25,6 +25,27 @@ fn serialize_struct(ident: Ident, s: DataStruct) -> TokenStream2 {
     let cursors_b = cursors_a.clone();
     cursors_a.insert(0, quote! { 0 });
 
+    #[cfg(feature = "unsafe")]
+    let (_unsafe, _unwrap) = (quote! { unsafe }, quote! { .unwrap_unchecked() });
+    #[cfg(not(feature = "unsafe"))]
+    let (_unsafe, _unwrap) = (quote! {}, quote! { .unwrap() });
+
+    #[cfg(not(feature = "unsafe"))]
+    let ser_attrs = quote! {
+        #(
+            let data = Serialize::serialize(self.#attrs);
+            result[#cursors_a..#cursors_b].copy_from_slice(&data);
+        )*
+    };
+
+    #[cfg(feature = "unsafe")]
+    let ser_attrs = quote! {
+        #(
+            let data = Serialize::serialize(self.#attrs);
+            unsafe { result[#cursors_a..#cursors_b].as_mut_ptr().copy_from_nonoverlapping(data.as_ptr(), <#types as Serialize>::Serialized::SIZE) };
+        )*
+    };
+
     quote! {
         impl Serialize for #ident {
             type Serialized = [u8; {#( <#types as Serialize>::Serialized::SIZE )+*}];
@@ -33,10 +54,7 @@ fn serialize_struct(ident: Ident, s: DataStruct) -> TokenStream2 {
             fn serialize(self) -> [u8; {<#ident as Serialize>::Serialized::SIZE}] {
                 let mut result = [0u8; {<#ident as Serialize>::Serialized::SIZE}];
 
-                #(
-                    let data = Serialize::serialize(self.#attrs);
-                    result[#cursors_a..#cursors_b].copy_from_slice(&data);
-                )*
+                #ser_attrs
 
                 result
             }
@@ -45,7 +63,7 @@ fn serialize_struct(ident: Ident, s: DataStruct) -> TokenStream2 {
                 Ok(
                     Self {
                         #(
-                            #attrs: Serialize::deserialize(data[#cursors_a..#cursors_b].try_into().unwrap())?
+                            #attrs: #_unsafe { Serialize::deserialize(data[#cursors_a..#cursors_b].try_into() #_unwrap)? }
                         ),*
                     }
                 )
@@ -131,6 +149,11 @@ fn serialize_enum(ident: Ident, repr: Type, e: DataEnum) -> TokenStream2 {
     let VariantTokenGroups(variant_idents, tags, associated_fields, filtered_types) =
         build_variant_token_groups(e);
 
+    #[cfg(feature = "unsafe")]
+    let (_unsafe, _unwrap) = (quote! { unsafe }, quote! { .unwrap_unchecked() });
+    #[cfg(not(feature = "unsafe"))]
+    let (_unsafe, _unwrap) = (quote! {}, quote! { .unwrap() });
+
     let ser_types = associated_fields
         .iter()
         .cloned()
@@ -138,10 +161,22 @@ fn serialize_enum(ident: Ident, repr: Type, e: DataEnum) -> TokenStream2 {
             maybe_field.and_then(
                 |field| {
                     let ty = field.ty;
+
+
                     if let Some(ident) = field.ident {
-                        Some(quote! { result[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].copy_from_slice(&Serialize::serialize(#ident)); })
+                        #[cfg(not(feature = "unsafe"))]
+                        let _copy = quote! { .copy_from_slice(&Serialize::serialize(#ident)) };
+                        #[cfg(feature = "unsafe")]
+                        let _copy = quote! { .as_mut_ptr().copy_from_nonoverlapping(Serialize::serialize(#ident).as_ptr(), <#ty as Serialize>::Serialized::SIZE) };
+
+                        Some(quote! { #_unsafe { result[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE] #_copy }; })
                     } else {
-                        Some(quote! { result[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].copy_from_slice(&Serialize::serialize(value)); })
+                        #[cfg(not(feature = "unsafe"))]
+                        let _copy = quote! { .copy_from_slice(&Serialize::serialize(value)) };
+                        #[cfg(feature = "unsafe")]
+                        let _copy = quote! { .as_mut_ptr().copy_from_nonoverlapping(Serialize::serialize(value).as_ptr(), <#ty as Serialize>::Serialized::SIZE) };
+
+                        Some(quote! { #_unsafe { result[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE] #_copy }; })
                     }
                 }
             )
@@ -174,10 +209,15 @@ fn serialize_enum(ident: Ident, repr: Type, e: DataEnum) -> TokenStream2 {
             maybe_field.and_then(
                 |field| {
                     let ty = field.ty;
+
                     if let Some(ident) = field.ident {
-                        Some(quote! { {#ident: Serialize::deserialize(data[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].try_into().unwrap())?} })
+                        Some(quote! {{
+                            #ident: #_unsafe { Serialize::deserialize(data[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].try_into() #_unwrap)? }
+                        }})
                     } else {
-                        Some(quote! { (Serialize::deserialize(data[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].try_into().unwrap())?) })
+                        Some(quote! {
+                            (#_unsafe { Serialize::deserialize(data[<#repr as Serialize>::Serialized::SIZE..<#repr as Serialize>::Serialized::SIZE + <#ty as Serialize>::Serialized::SIZE].try_into() #_unwrap)? })
+                        })
                     }
                 }
             )
@@ -201,6 +241,26 @@ fn serialize_enum(ident: Ident, repr: Type, e: DataEnum) -> TokenStream2 {
         }
     };
 
+    #[cfg(not(feature = "unsafe"))]
+    let ser_variants = quote! {
+        #(
+            Self::#variant_idents #type_captures => {
+                result[..<#repr as Serialize>::Serialized::SIZE].copy_from_slice(&Serialize::serialize(#tags as #repr));
+                #ser_types
+            }
+        )*
+    };
+
+    #[cfg(feature = "unsafe")]
+    let ser_variants = quote! {
+        #(
+            Self::#variant_idents #type_captures => {
+                unsafe { result[..<#repr as Serialize>::Serialized::SIZE].as_mut_ptr().copy_from_nonoverlapping(Serialize::serialize(#tags as #repr).as_ptr(), <#repr as Serialize>::Serialized::SIZE) };
+                #ser_types
+            }
+        )*
+    };
+
     quote! {
         impl Serialize for #ident {
             type Serialized = [u8; #size];
@@ -210,19 +270,14 @@ fn serialize_enum(ident: Ident, repr: Type, e: DataEnum) -> TokenStream2 {
                 let mut result = Self::Serialized::default();
 
                 match self {
-                    #(
-                        Self::#variant_idents #type_captures => {
-                            result[..<#repr as Serialize>::Serialized::SIZE].copy_from_slice(&Serialize::serialize(#tags as #repr));
-                            #ser_types
-                        }
-                    )*
+                    #ser_variants
                 }
 
                 result
             }
 
             fn deserialize(data: Self::Serialized) -> Result<Self, Self::Error> {
-                let tag = Serialize::deserialize(data[..<#repr as Serialize>::Serialized::SIZE].try_into().unwrap())?;
+                let tag = #_unsafe { Serialize::deserialize(data[..<#repr as Serialize>::Serialized::SIZE].try_into() #_unwrap)? };
 
                 #(
                     const #tag_consts: #repr = #tags;
